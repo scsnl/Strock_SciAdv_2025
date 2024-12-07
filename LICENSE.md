@@ -1,6 +1,7 @@
 # [CC BY-NC 4.0 License](https://creativecommons.org/licenses/by-nc/4.0)
 
 **Copyright © 2024 by The Board of Trustees of the Leland Stanford Junior University**
+
 **Contact the Stanford Office of Technology Licensing (otl.stanford.edu) for commercial license inquiries**
 
 **Attribution-NonCommercial 4.0 International**
@@ -75,15 +76,15 @@ a. __Attribution.__
 
       A. retain the following if it is supplied by the Licensor with the Licensed Material:
 
-         i. identification of the creator(s) of the Licensed Material and any others designated to receive attribution, in any reasonable manner requested by the Licensor (including by pseudonym if designated);
+            i. identification of the creator(s) of the Licensed Material and any others designated to receive attribution, in any reasonable manner requested by the Licensor (including by pseudonym if designated);
 
-         ii. a copyright notice;
+            ii. a copyright notice;
 
-         iii. a notice that refers to this Public License;
+            iii. a notice that refers to this Public License;
 
-         iv. a notice that refers to the disclaimer of warranties;
+            iv. a notice that refers to the disclaimer of warranties;
 
-         v. a URI or hyperlink to the Licensed Material to the extent reasonably practicable;
+            v. a URI or hyperlink to the Licensed Material to the extent reasonably practicable;
 
       B. indicate if You modified the Licensed Material and retain an indication of any previous modifications; and
 
