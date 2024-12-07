@@ -26,8 +26,15 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
-    selected_steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
+    selected_steps = steps # TODO: Fix byg when 0 3800
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
     idx_roi = 1
@@ -58,19 +65,20 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     # Path were entropy are saved
-    entropy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/entropy'
-    distribution_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distribution'
+    entropy_path = f'{os.environ.get("DATA_PATH")}/{task}/entropy'
+    distribution_path = f'{os.environ.get("DATA_PATH")}/{task}/distribution'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -81,9 +89,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
 
@@ -156,11 +164,12 @@ def main(args):
     ax_F = letter('F',violinplot)(f, gs[2,1], [precision_response_best_e[patient_data['Group']=='MD', best_step_b_idx], precision_response_best_e[patient_data['Group']=='TD', best_step_b_idx]] , names = ['MLD\npDNN','TD\npDNN'], ylim = (-0.1, 2.1), c = [c_md, c_td], pd = 'all', ylabel = 'numerical imprecision')
     ax_G = letter('G',violinplot)(f, gs[2,2], [h_b_best_e[patient_data['Group']=='MD', best_step_b_idx], h_b_best_e[patient_data['Group']=='TD', best_step_b_idx]] , names = ['MLD\npDNN','TD\npDNN'], ylim = (-1, 20), c = [c_md, c_td], pd = 'all', ylabel = '# different responses')
     print(f'Decrease effective number of response: {np.max(h_b[:, best_step_b_idx]):.2f} -> {np.min(h_b[:, best_step_b_idx]):.2f}')
-
-    f.savefig(f'{figure_path}/figure6.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figure6.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure6.pdf', dpi = 1200)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Figure 6 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

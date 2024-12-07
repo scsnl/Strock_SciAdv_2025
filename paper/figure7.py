@@ -29,7 +29,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(100, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -61,18 +68,19 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path containing tuning
-    manifold_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/manifold'
+    manifold_path = f'{os.environ.get("DATA_PATH")}/{task}/manifold' if args.dataset in ['h', 'f'] else f'{os.environ.get("DATA_PATH")}/{task}/manifold_proj'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -100,9 +108,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
     acc = acc[:,selected_steps_idx]
@@ -115,10 +123,17 @@ def main(args):
     correlation = []
 
     for i,step in enumerate(tqdm(selected_steps)):
-        capacity.append(np.load(f'{manifold_path}/manifold_capacity{ext}_step{step:02}.npz')['arr_0'])
-        radius.append(np.load(f'{manifold_path}/manifold_radius{ext}_step{step:02}.npz')['arr_0'])
-        dimension.append(np.load(f'{manifold_path}/manifold_dimension{ext}_step{step:02}.npz')['arr_0'])
-        correlation.append(np.load(f'{manifold_path}/manifold_correlation{ext}_step{step:02}.npz')['arr_0'])
+        try:
+            capacity.append(np.load(f'{manifold_path}/manifold_capacity{ext}_step{step:02}.npz')['arr_0'])
+            radius.append(np.load(f'{manifold_path}/manifold_radius{ext}_step{step:02}.npz')['arr_0'])
+            dimension.append(np.load(f'{manifold_path}/manifold_dimension{ext}_step{step:02}.npz')['arr_0'])
+            correlation.append(np.load(f'{manifold_path}/manifold_correlation{ext}_step{step:02}.npz')['arr_0'])
+        except: # TODO: Remove after all done
+            print(f'Redo manifold analysis step {step:d}')
+            capacity.append(np.nan*capacity[-1])
+            radius.append(np.nan*radius[-1])
+            dimension.append(np.nan*dimension[-1])
+            correlation.append(np.nan*correlation[-1])
     capacity = np.stack(capacity)
     radius = np.stack(radius)
     dimension = np.stack(dimension)
@@ -211,10 +226,12 @@ def main(args):
     ax_E = letter('E', barplot_by_layer)(f, gs[1,1], modules, [dimension_best_e_md[:,modules_idx], dimension_best_e_td[:,modules_idx]], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'manifold dimensionality')
     ax_F = letter('F', barplot_by_layer)(f, gs[1,2], modules, [correlation_best_e_md[:,modules_idx], correlation_best_e_td[:,modules_idx]], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'inter-manifold correlation')
 
-    f.savefig(f'{figure_path}/figure7.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figure7.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure7.pdf', dpi = 1200)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Figure 7 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

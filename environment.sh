@@ -28,5 +28,6 @@ mkdir -p $TMP_PATH/log
 ml system libnvidia-container
 source $GROUP_HOME/python_envs/pyenv/activate.sh
 export NN_COMMON=$CODE_PATH/common
-export PYTHONPATH=$NN_COMMON:$PYTHONPATH
+export CORNET=$CODE_PATH/common/packages/CORnet
+export PYTHONPATH=$NN_COMMON:$PYTHONPATH:$CORNET
 source $NN_COMMON/slurm/slurm_aliases.sh

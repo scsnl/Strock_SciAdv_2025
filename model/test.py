@@ -42,22 +42,30 @@ def main(args):
     # Paths where to load/save data
     # -------------------------------
 
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+
     model_name = f'scaled{ext}_{args.scale[0]}{f"_rec_1_{args.rec[0]}_{args.rec[1]}_{args.rec[2]}" if not args.rec is None else ""}_fixedbatchnorm'
     if args.pretrained:
         model_path = f'{model_path}_pretrained'
     print(f'Model: {model_name}')
     # path where activities are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity/{model_name}'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity/{model_name}'
     # path where inputs and desired outputs are saved
-    task_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    task_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # path where accuracies are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy/{model_name}'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy/{model_name}'
     # path where log of test are saved
-    log_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/log/test'
+    log_path = f'{os.environ.get("DATA_PATH")}/{task}/log/test'
     # path containing the dataset
-    dataset_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/stimuli'
+    dataset_path = [f'{os.environ.get("DATA_PATH")}/{task}/stimuli' for task in tasks]
     # path containing the model
-    model_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/model/{model_name}'
+    model_path = f'{os.environ.get("DATA_PATH")}/{task}/model/{model_name}'
 
     # -------------------------------
     # Test dataset
@@ -66,11 +74,11 @@ def main(args):
     # only the selected sample are used
     pattern_sample = f'\\d*_\\d*(\\+|-)\\d*_({reduce(lambda a,b: f"{a}|{b}", sample)})'
     # simple global pattern containing files
-    path = f'{dataset_path}/*.png'
+    path = [f'{p}/*.png' for p in dataset_path]
     # regex matching only the files that should be used for training
-    include = f'{dataset_path}/{pattern_sample}.png'
+    include = [f'{p}/{pattern_sample}.png' for p in dataset_path]
 
-    dataset = ArithmeticDataset(path = path, summary = f'{dataset_path}/test.pkl', include = include)
+    dataset = ArithmeticDataset(path = path, summary = f'{os.environ.get("DATA_PATH")}/{task}/stimuli/test.pkl', include = include)
     test_loader = DataLoader(dataset, batch_size = 100, shuffle = False, num_workers = 10, pin_memory = True)
 
     # -------------------------------
@@ -155,5 +163,6 @@ if __name__ == '__main__':
     parser.add_argument('--modules', metavar='M', type = str, nargs='*', default = None, help='which modules are hyper-excitable (default V1, V2, V4 and IT)')
     parser.add_argument('--pretrained', action = 'store_true', help='if set use CORnet pretrained on ImageNet')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

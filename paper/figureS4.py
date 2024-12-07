@@ -29,7 +29,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(100, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -61,18 +68,19 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path containing tuning
-    manifold_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/manifold'
+    manifold_path = f'{os.environ.get("DATA_PATH")}/{task}/manifold'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -100,9 +108,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
     acc = acc[:,selected_steps_idx]
@@ -200,27 +208,30 @@ def main(args):
     gs = f.add_gridspec(len(hs), len(ws), height_ratios = hs, hspace = hspace/np.mean(hs), width_ratios = ws, wspace = wspace/np.mean(ws), left = _ws[0]/np.sum(_ws), right = 1.0-_ws[-1]/np.sum(_ws), bottom = _hs[-1]/np.sum(_hs), top = 1.0-_hs[0]/np.sum(_hs))
     xlim = (-100,3900)
     ylim = (-0.01, 0.08)
-    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], capacity[0], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[0,1], capacity[2], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[0,2], capacity[6], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[0,3], capacity[8], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+
+    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], capacity[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[0,1], capacity[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[0,2], capacity[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[0,3], capacity[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
     
     ylim = (-10, 510)
-    ax_B = letter('B',plot_value_by_iteration)(f, gs[1,0], dimension[0], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[1,1], dimension[2], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[1,2], dimension[6], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[1,3], dimension[8], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    ax_B = letter('B',plot_value_by_iteration)(f, gs[1,0], dimension[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[1,1], dimension[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[1,2], dimension[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[1,3], dimension[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
     
     ylim = (-0.1, 1.1)
-    ax_C = letter('C',plot_value_by_iteration)(f, gs[2,0], correlation[0], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[2,1], correlation[2], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[2,2], correlation[6], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[2,3], correlation[8], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    ax_C = letter('C',plot_value_by_iteration)(f, gs[2,0], correlation[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[2,1], correlation[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[2,2], correlation[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[2,3], correlation[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
 
-    f.savefig(f'{figure_path}/figureS4.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figureS4.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figureS4.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure 7 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S4 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

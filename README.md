@@ -12,11 +12,15 @@ source environment.sh
 ## Generation of the addition/subtraction dataset
 
 ```bash
-submit8c dataset/addsub18.py
+submit8c dataset/addsub18_handwritten.py
 ```
 
 ```bash
-submit1c dataset/behavioral_addsub18.py
+submit8c dataset/addsub18_font.py
+```
+
+```bash
+submit1c dataset/behavior_addsub18.py
 ```
 
 ## Model
@@ -33,7 +37,7 @@ submit1g "model/test.py --scale 1.0 --saveall --step $(seq -s ' ' 0 100 3800)"
 
 Representational similarity analysis
 ```bash
-submit8c analysis/similarity_analysis/addsub_similarity.py
+submit8c analysis/similarity_analysis/addsub_similarity.py  --time 1-00:00:00
 ```
 
 Behavioral analysis

@@ -6,14 +6,14 @@ from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr, ttest_ind, ttest_1samp
-from utils.data import behavior_acc, matching_ranges, cohen_d
+from utils.data import behavior_acc, matching_ranges
 from utils.prompt import print_title
 
 # Plot import
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-from utils.plots import get_figsize, letter, plot_bar, violinplot, plot_value_by_iteration, plot_bar_by_gain, plot
+from utils.plots import get_figsize, letter, plot_bar, violinplot, plot_value_by_iteration, plot_bar_by_gain, plot, barplot_by_layer, scatter
 
 def main(args):
 
@@ -39,6 +39,9 @@ def main(args):
 
     idx_roi = 1
     name_roi = 'right IPL/IPS'
+    thresholds = [0.95]
+    modules = ['V1', 'V2', 'V3', 'IPS']
+    idx_modules = modules_idx = [0,2,6,8]
 
     # -------------------------------
     # Figure parameters
@@ -52,12 +55,12 @@ def main(args):
     zoom = 10
     groups = ['TD', 'MD']
     phi = (1+np.sqrt(5))/2
-    ws = phi*np.array([1,1,1])
+    ws = phi*np.array([1,1])
     wspace = phi
     hs = np.array([1,1,1,1])
-    hspace = phi
+    hspace = 1
 
-    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom, left = 1, right = 1.5)
+    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom)
 
     # -------------------------------
     # Paths where to load/save data
@@ -170,6 +173,7 @@ def main(args):
     best_step_b = steps[best_step_b_idx]
     best_e = best_e_numops[:,best_step_b_idx]
     best_e_idx = np.where(scales[None] == best_e[:,None])[1]
+    best_step_b_selected_idx = np.where(selected_steps == best_step_b)[0][0]
 
     # Model manifold properties
 
@@ -179,10 +183,17 @@ def main(args):
     correlation = []
 
     for i,step in enumerate(tqdm(selected_steps[1:])):
-        capacity.append(np.load(f'{manifold_path}/manifold_capacity{ext}_step{step:02}.npz')['arr_0'])
-        radius.append(np.load(f'{manifold_path}/manifold_radius{ext}_step{step:02}.npz')['arr_0'])
-        dimension.append(np.load(f'{manifold_path}/manifold_dimension{ext}_step{step:02}.npz')['arr_0'])
-        correlation.append(np.load(f'{manifold_path}/manifold_correlation{ext}_step{step:02}.npz')['arr_0'])
+        try:
+            capacity.append(np.load(f'{manifold_path}/manifold_capacity{ext}_step{step:02}.npz')['arr_0'])
+            radius.append(np.load(f'{manifold_path}/manifold_radius{ext}_step{step:02}.npz')['arr_0'])
+            dimension.append(np.load(f'{manifold_path}/manifold_dimension{ext}_step{step:02}.npz')['arr_0'])
+            correlation.append(np.load(f'{manifold_path}/manifold_correlation{ext}_step{step:02}.npz')['arr_0'])
+        except: # TODO: Remove after all done
+            print(f'Redo manifold analysis step {step:d}')
+            capacity.append(np.nan*capacity[-1])
+            radius.append(np.nan*radius[-1])
+            dimension.append(np.nan*dimension[-1])
+            correlation.append(np.nan*correlation[-1])
     capacity = np.stack(capacity)
     radius = np.stack(radius)
     dimension = np.stack(dimension)
@@ -192,6 +203,31 @@ def main(args):
     radius = np.mean(radius, axis = -1).T
     dimension = np.mean(dimension, axis = -1).T
     correlation = correlation.T
+
+    # Normalize data
+
+    print(best_step_b_idx, best_e_idx)
+    min_acc, max_acc = patient_data['addsub_accuracy'].min(), patient_data['addsub_accuracy'].max()
+    transform_acc = lambda x: min_acc+x*(max_acc-min_acc)
+    acc[...] = (acc-min_acc)/(max_acc-min_acc)
+    min_addsub_rs, max_addsub_rs = addsub_rs.min(axis = (1,2), keepdims = True), addsub_rs.max(axis = (1,2), keepdims = True)
+    transform_addsub_rs = lambda x: min_addsub_rs+x*(max_addsub_rs-min_addsub_rs)
+    idx = ['addsub_accuracy', 'numops', name_roi]
+    patient_data[idx] = (patient_data[idx]-patient_data[idx].min())/(patient_data[idx].max()-patient_data[idx].min())
+
+    # Matched behavioral/neural
+
+    addsub_rs[...] = (addsub_rs-min_addsub_rs)/(max_addsub_rs-min_addsub_rs)
+    addsub_rs_best_e = addsub_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    addsub_rs_best_e_td = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    addsub_rs_best_e_md = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+    addsub_rs_child = patient_data[name_roi]
+    trueness_response_best_e = trueness_response[best_e_idx]
+    precision_response_best_e = precision_response[best_e_idx]
+    h_b_best_e = h_b[best_e_idx]
+    correlation_best_e = correlation[:, best_e_idx, best_step_b_selected_idx]
+    correlation_best_e_td = np.percentile(correlation_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    correlation_best_e_md = np.percentile(correlation_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
 
     # Prediction of patient with best model addsub-similarity best matched with numops
 
@@ -208,6 +244,8 @@ def main(args):
     idx = {g:(patients["Group"]==g).to_numpy() for g in groups}
 
     size_effect = np.median(lagged_predicted_patient_b_numops[idx['MD']], axis = 0)-np.median(lagged_predicted_patient_b_numops[idx['TD'],:1], axis = 0)
+    #size_effect[size_effect<0] = np.inf
+    #size_effect[size_effect>0] = -np.inf
     best_lag = np.argmin(np.abs(size_effect))
     md_step_idx = best_step_b_idx + best_lag
     md_step = steps[md_step_idx]
@@ -223,7 +261,7 @@ def main(args):
 
     additional_training = 100*catchup[best_e_idx, best_step_b_idx]/(best_step_b+1)
     total_training = 100*(catchup[best_e_idx, best_step_b_idx]+best_step_b)/(best_step_b+1)
-    print('HERE:', additional_training)
+
     # -------------------------------
     # Debug
     # -------------------------------
@@ -254,24 +292,20 @@ def main(args):
     print_title('Display')
     f = plt.figure(figsize = figsize)
     gs = f.add_gridspec(len(hs), len(ws), height_ratios = hs, hspace = hspace/np.mean(hs), width_ratios = ws, wspace = wspace/np.mean(ws), left = _ws[0]/np.sum(_ws), right = 1.0-_ws[-1]/np.sum(_ws), bottom = _hs[-1]/np.sum(_hs), top = 1.0-_hs[0]/np.sum(_hs))
-    ax_A = letter('A',plot)(f, gs[0,0], scales, catchup[:,best_step_b_idx], xlabel = 'gain $G$', ylabel = f'catching iteration', xlim = (0.5, 5.5), xticks = scales[::4], ylim = (-200, 1700), loc = 'lower right', correlate = True)
-    ax_B = letter('B',violinplot)(f, gs[0,1], [additional_training[patient_data['Group']=='MD'], additional_training[patient_data['Group']=='TD']] , names = ['MLD','TD'], ylim = (-10, 150), c = [c_md, c_td], pd = [(0,1)], ylabel = 'additional training (%)')#, title = None)
-    ax_B = letter('C',violinplot)(f, gs[0,2], [lagged_predicted_patient_b_numops[patient_data['Group']=='MD', 0], lagged_predicted_patient_b_numops[patient_data['Group']=='MD', best_lag], lagged_predicted_patient_b_numops[patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 1.0), c = [c_md, c_md, c_td, c_td], pd = [(0,1),(1,2)], ylabel = 'accuracy')
-    ax_C = letter('D',violinplot)(f, gs[1,0], [lagged_predicted_patient_b2_numops[patient_data['Group']=='MD', 0], lagged_predicted_patient_b2_numops[patient_data['Group']=='MD', best_lag], lagged_predicted_patient_b2_numops[patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 2.1), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'numerical systematic error')
-    ax_D = letter('E',violinplot)(f, gs[1,1], [lagged_predicted_patient_b3_numops[patient_data['Group']=='MD', 0], lagged_predicted_patient_b3_numops[patient_data['Group']=='MD', best_lag], lagged_predicted_patient_b3_numops[patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 2.1), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'numerical imprecision')
-    ax_D = letter('F',violinplot)(f, gs[1,2], [lagged_predicted_patient_b4_numops[patient_data['Group']=='MD', 0], lagged_predicted_patient_b4_numops[patient_data['Group']=='MD', best_lag], lagged_predicted_patient_b4_numops[patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 20.1), c = [c_md, c_md, c_td, c_td], pd = [(0,1),(1,2)], ylabel = '# different responses')
-    ax_E = letter('G',violinplot)(f, gs[2,0], [lagged_predicted_patient_n_numops[8,patient_data['Group']=='MD', 0], lagged_predicted_patient_n_numops[8,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n_numops[8,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 1.0), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'add-sub NRS')
-    ax_E = letter('H',violinplot)(f, gs[2,1], [lagged_predicted_patient_n0_numops[8,patient_data['Group']=='MD', 0], lagged_predicted_patient_n0_numops[8,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n0_numops[8,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 1.0), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'add-add NRS')
-    ax_E = letter('I',violinplot)(f, gs[2,2], [lagged_predicted_patient_n1_numops[8,patient_data['Group']=='MD', 0], lagged_predicted_patient_n1_numops[8,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n1_numops[8,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 1.0), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'sub-sub NRS')
-    ax_F = letter('J',violinplot)(f, gs[3,0], [lagged_predicted_patient_n2_numops[-1,patient_data['Group']=='MD', 0], lagged_predicted_patient_n2_numops[-1,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n2_numops[-1,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.01, 0.07), c = [c_md, c_md, c_td, c_td], pd = [(0,1),(1,2)], ylabel = 'manifold capacity')
-    ax_G = letter('K',violinplot)(f, gs[3,1], [lagged_predicted_patient_n3_numops[-1,patient_data['Group']=='MD', 0], lagged_predicted_patient_n3_numops[-1,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n3_numops[-1,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-1, 201), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'manifold dimensionality')
-    ax_H = letter('L',violinplot)(f, gs[3,2], [lagged_predicted_patient_n4_numops[-1,patient_data['Group']=='MD', 0], lagged_predicted_patient_n4_numops[-1,patient_data['Group']=='MD', best_lag], lagged_predicted_patient_n4_numops[-1,patient_data['Group']=='TD', 0]] , names = ['MLD\nPre','MLD\nPost','TD\nPre'], ylim = (-0.1, 0.9), c = [c_md, c_md, c_td, c_td], pd = [(1,2),(0,1)], ylabel = 'inter-manifold correlation')
-    f.savefig(f'{figure_path}/png/figure8.png', dpi = 1200)
-    f.savefig(f'{figure_path}/pdf/figure8.pdf', dpi = 1200)
+    ax_2A = letter('2A',plot_value_by_iteration)(f, gs[0,0], transform_acc(acc[:,selected_steps_idx]), scales, selected_steps, ylabel = 'accuracy', clabel = 'gain $G$', ylim = (-0.1, 1.1), cticks = np.arange(1,6), threshold = 0.95, chance = 1/19)
+    ax_3C = letter('3C',violinplot)(f, gs[0,1], [best_e[patient_data['Group']=='MD'], best_e[patient_data['Group']=='TD']] , names = ['MLD\npDNN','TD\npDNN'], xlabel = '', ylabel = f'gain $G$', ylim = (0.5, 5.5), c = [c_md, c_td], pd = 'all')
+    ax_5A = letter('5A', barplot_by_layer)(f, gs[1,0], modules, [addsub_rs_best_e_md, addsub_rs_best_e_td], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'add-sub NRS')
+    ax_5B = letter('5B', scatter)(f, gs[1,1], addsub_rs_child, addsub_rs_best_e[-1], xlabel = 'children add-sub NRS', ylabel = 'pDNN add-sub NRS', correlate = True)
+    ax_6E = letter('6E',violinplot)(f, gs[2,0], [trueness_response_best_e[patient_data['Group']=='MD', best_step_b_idx], trueness_response_best_e[patient_data['Group']=='TD', best_step_b_idx]] , names = ['MLD\npDNN','TD\npDNN'], ylim = (-0.1, 1.1), c = [c_md, c_td], pd = 'all', ylabel = 'numerical systematic error')
+    ax_6G = letter('6G',violinplot)(f, gs[2,1], [h_b_best_e[patient_data['Group']=='MD', best_step_b_idx], h_b_best_e[patient_data['Group']=='TD', best_step_b_idx]] , names = ['MLD\npDNN','TD\npDNN'], ylim = (-1, 20), c = [c_md, c_td], pd = 'all', ylabel = '# different responses')
+    ax_7F = letter('7F', barplot_by_layer)(f, gs[3,0], modules, [correlation_best_e_md[:,modules_idx], correlation_best_e_td[:,modules_idx]], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'inter-manifold correlation')
+    ax_8B = letter('8B',violinplot)(f, gs[3,1], [additional_training[patient_data['Group']=='MD'], additional_training[patient_data['Group']=='TD']] , names = ['MLD','TD'], ylim = (-10, 150), c = [c_md, c_td], pd = [(0,1)], ylabel = 'additional training (%)')#, title = None)
+    f.savefig(f'{figure_path}/png/figure_S9.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure_S9.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure 8 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S9 of manuscript')
     parser.add_argument('--redo', action='store_true')
-    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h+f', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

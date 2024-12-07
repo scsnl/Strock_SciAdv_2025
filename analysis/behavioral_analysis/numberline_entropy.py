@@ -19,16 +19,39 @@ def plot_value_by_iteration(f, gs, value, es, steps, labely, labelc, xlim = None
     return ax
 
 def main(args):
-    pl.seed_everything(0)
+
+    seed = 0
+    pl.seed_everything(seed)
+
+    # -------------------------------
+    # Parameters
+    # -------------------------------
+
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
-    distribution_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distribution'
-    entropy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/entropy'
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
+
+    # -------------------------------
+    # Paths where to load/save data
+    # -------------------------------
+
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
+    distribution_path = f'{os.environ.get("DATA_PATH")}/{task}/distribution'
+    entropy_path = f'{os.environ.get("DATA_PATH")}/{task}/entropy'
     ext = f'_{args.variant}' if len(args.variant) > 0 else ''
     os.makedirs(distribution_path, exist_ok = True)
     os.makedirs(entropy_path, exist_ok = True)
+
+    # -------------------------------
+    # Computing entropy
+    # -------------------------------
 
     filename = [f'{distribution_path}/n_summary_scaled{ext}.npy']
     task = np.load(f'{activity_path}/task.npz')
@@ -68,5 +91,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Compute distribution and entropy of behavioral response')
     parser.add_argument('--variant', metavar = 'V', type = str, default = 'fixedbatchnorm', help = 'variant used')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

@@ -218,13 +218,17 @@ no_transform = transforms.ToTensor()
 def gen_from_font(font, c, char_dim, bg_color, char_color):
     t = torch.zeros(char_dim)
     if c != " ":
-        idx = np.random.randint(len(font))
-        face = font[idx]
+        f = np.random.choice(list(font.keys()))
+        face = font[f]
         face.set_pixel_sizes(*char_dim)
         face.load_char(c)
         w,h = face.glyph.bitmap.width, face.glyph.bitmap.rows
-        x,y = face.glyph.bitmap_left, (face.size.ascender >> 6) - face.glyph.bitmap_top - ((face.size.ascender >> 6)-(face.size.descender >> 6)-char_dim[0])//2
-        t[y:y+h, x:x+w] = torch.Tensor(np.array(face.glyph.bitmap.buffer, dtype='ubyte').reshape(h,w)/255)
+        x,y = np.clip(face.glyph.bitmap_left, 0, None), np.clip((face.size.ascender >> 6) - face.glyph.bitmap_top - ((face.size.ascender >> 6)-(face.size.descender >> 6)-char_dim[0])//2, 0, None)
+        try:
+            t[y:y+h, x:x+w] = torch.Tensor(np.array(face.glyph.bitmap.buffer, dtype='ubyte').reshape(h,w)/255)
+        except:
+            print(f'"{c}"', f, t[y:y+h, x:x+w].shape, np.array(face.glyph.bitmap.buffer, dtype='ubyte').reshape(h,w).shape)
+            breakpoint()
     return bg_color + t*(char_color-bg_color)
 
 # -------------------------------
@@ -278,9 +282,9 @@ class ArithmeticDataset(Dataset):
 
     def load_png(self, path, include, transform):
         print("Loading PNG data")
-        path = sorted(glob.glob(path))
+        path = sorted(sum([glob.glob(p) for p in path], start = []))
         if not include is None:
-            path = sorted([p for p in path if re.fullmatch(include, p)])
+            path = sorted([p for p in path if any([re.fullmatch(incl, p) for incl in include])])
         self.all_label, self.label_id = np.unique([self.get_res_from_path(p) for p in path], return_inverse=True)
         self.all_op, self.op_id = np.unique([self.get_op_from_path(p) for p in path], return_inverse=True)
         self.img = []

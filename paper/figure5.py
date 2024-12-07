@@ -26,7 +26,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(0, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -60,18 +67,19 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path where representational similarity are saved
-    rs_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/rsa_test'
+    rs_path = f'{os.environ.get("DATA_PATH")}/{task}/rsa_test'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -82,9 +90,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
 
@@ -165,6 +173,7 @@ def main(args):
     acc_best_e = transform_acc(acc[best_e_idx, best_step_b_idx])
     acc_child = transform_acc(patient_data['numops'])
 
+    print(best_step_b_idx, best_e_idx)
     addsub_rs_best_e = addsub_rs[:, best_e_idx, best_step_b_idx][idx_modules]
     addsub_rs_best_e_td = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
     addsub_rs_best_e_md = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
@@ -220,10 +229,12 @@ def main(args):
     ax_A = letter('A', barplot_by_layer)(f, gs[0,0], modules, [addsub_rs_best_e_md, addsub_rs_best_e_td], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'add-sub NRS')
     ax_B = letter('B', scatter)(f, gs[0,1], addsub_rs_child, addsub_rs_best_e[-1], xlabel = 'children add-sub NRS', ylabel = 'pDNN add-sub NRS', correlate = True)
     ax_C = letter('C', hist)(f, gs[0,2], rs, r0, xlabel = 'r')
-    f.savefig(f'{figure_path}/figure5.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figure5.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure5.pdf', dpi = 1200)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Figure 5 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

@@ -36,31 +36,39 @@ def main(args):
 	# Paths where to load/save data
 	# -------------------------------
 
+	if args.dataset == 'h':
+		tasks = [f'addsub_{n_max}']
+	elif args.dataset == 'f':
+		tasks =  [f'addsub_{n_max}_font']
+	elif args.dataset == 'h+f' or args.dataset == 'f+h':
+		tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+	task =  '+'.join(tasks)
+
 	# path where model are saved
-	model_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/model/scaled{ext}_{args.scale[0]}{f"_rec_1_{args.rec[0]}_{args.rec[1]}_{args.rec[2]}" if not args.rec is None else ""}'
+	model_path = f'{os.environ.get("DATA_PATH")}/{task}/model/scaled{ext}_{args.scale[0]}{f"_rec_1_{args.rec[0]}_{args.rec[1]}_{args.rec[2]}" if not args.rec is None else ""}'
 	model_path = f'{model_path}_fixedbatchnorm'
 	if args.pretrained:
 		model_path = f'{model_path}_pretrained'
 
 	os.makedirs(f'{model_path}', exist_ok=True)
 	# path where log of training are saved
-	log_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/log/train'
+	log_path = f'{os.environ.get("DATA_PATH")}/{task}/log/train'
 	# path containing the dataset
-	dataset_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/stimuli'
+	dataset_path = [f'{os.environ.get("DATA_PATH")}/{task}/stimuli' for task in tasks]
 
 	# -------------------------------
 	# Training dataset
 	# -------------------------------
 
-
 	# only the selected sample are used
 	pattern_sample = f'\\d*_\\d*(\\+|-)\\d*_({reduce(lambda a,b: f"{a}|{b}", sample)})'
 	# simple global pattern containing files
-	path = f'{dataset_path}/*.png'
+	path = [f'{p}/*.png' for p in dataset_path]
 	# regex matching only the files that should be used for training
-	include = f'{dataset_path}/{pattern_sample}.png'
+	include = [f'{p}/{pattern_sample}.png' for p in dataset_path]
 
-	dataset = ArithmeticDataset(path = path, summary = f'{dataset_path}/train.pkl',include = include)
+	os.makedirs(f'{os.environ.get("DATA_PATH")}/{task}/stimuli', exist_ok=True)
+	dataset = ArithmeticDataset(path = path, summary = f'{os.environ.get("DATA_PATH")}/{task}/stimuli/train.pkl',include = include)
 	train_loader = DataLoader(dataset, batch_size = 100, shuffle = True, num_workers = 10, pin_memory = True)
 
 	# -------------------------------
@@ -98,5 +106,6 @@ if __name__ == '__main__':
     parser.add_argument('--rec', metavar='S', type = int, nargs=3, default = None, help='rec time used for V2 V4 IT')
     parser.add_argument('--modules', metavar='M', type = str, nargs='*', default = None, help='which modules are hyper-excitable (default V1, V2, V4 and IT)')
     parser.add_argument('--pretrained', action = 'store_true', help='if set use CORnet pretrained on ImageNet')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

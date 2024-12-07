@@ -79,7 +79,7 @@ def main(args):
     # path containing the dataset
     dataset_path = [f'{os.environ.get("DATA_PATH")}/{task}/stimuli' for task in tasks]
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/addsub_{n_max}'
     os.makedirs(f'{figure_path}/png', exist_ok=True)
     os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
@@ -115,12 +115,12 @@ def main(args):
             ax = letter('',plot_stimuli)(f, gs[j,i], img[k], op[k])
         ax = letter('',plot_title)(f, gs[:,i], name)
 
-    f.savefig(f'{figure_path}/png/figureS6.png', dpi = 1200)
-    f.savefig(f'{figure_path}/pdf/figureS6.pdf', dpi = 1200)
+    f.savefig(f'{figure_path}/png/figureS8.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figureS8.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure S6 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S8 of manuscript')
     parser.add_argument('--redo', action='store_true')
-    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'f', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

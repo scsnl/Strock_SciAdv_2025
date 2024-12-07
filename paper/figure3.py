@@ -26,7 +26,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(0, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -58,15 +65,16 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     os.makedirs(distance_path, exist_ok=True)
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -77,9 +85,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
 
@@ -208,10 +216,12 @@ def main(args):
     ax_B = letter('B',violinplot)(f, gs[0,1], [best_db_numops[patient_data['Group']=='MD',best_step_b_idx], best_db_numops[patient_data['Group']=='TD',best_step_b_idx], best_db_random[:,:,best_step_b_idx].flatten()] , names = ['MLD','TD','Random'], xlabel = '', ylabel = f'behavioral distance', ylim = (-0.1, 1.1), c = [c_md, c_td, c_random], pd = 'all')
     ax_C = letter('C',violinplot)(f, gs[1,0], [best_e[patient_data['Group']=='MD'], best_e[patient_data['Group']=='TD']] , names = ['MLD\npDNN','TD\npDNN'], xlabel = '', ylabel = f'gain $G$', ylim = (0.5, 5.5), c = [c_md, c_td], pd = 'all')
     ax_D = letter('D',violinplot)(f, gs[1,1], [acc_best_e[patient_data['Group']=='MD'], acc_child[patient_data['Group']=='MD'], acc_best_e[patient_data['Group']=='TD'], acc_child[patient_data['Group']=='TD']] , names = ['MLD\npDNN', 'MLD\nChildren', 'TD\npDNN', 'TD\nChildren'], xlabel = '', ylabel = f'behavioral score', ylim = (-0.1, 1.1), c = [c_md, c_md, c_td, c_td], pd = [(0,1), (2,3), [(0,2), (0,3), (1,2), (1,3)]], printstats = [(0,2), (1,3)])
-    f.savefig(f'{figure_path}/figure3.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figure3.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure3.pdf', dpi = 1200)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Figure 3 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

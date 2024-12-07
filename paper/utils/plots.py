@@ -21,7 +21,7 @@ class TextHandler(HandlerBase):
 
 Legend.update_default_handler_map({str : TextHandler()})
 
-def letter(letter, plot = lambda f, gs: f.add_subplot(gs), delta = 0.1, k = 2, printletter = False):
+def letter(letter, plot = lambda f, gs: f.add_subplot(gs), delta = 0.1, k=2, printletter = False): # fontsize = 9, printsize = 7.25, k = fonsize/printsize
     def wrapper(f, gs, *args, **kwargs):
         if printletter:
             print_title(letter)

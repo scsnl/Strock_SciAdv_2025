@@ -27,7 +27,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(0, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -61,12 +68,13 @@ def main(args):
     # -------------------------------
 
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path where representational similarity are saved
-    rs_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/rsa_test'
+    rs_path = f'{os.environ.get("DATA_PATH")}/{task}/rsa_test'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -152,22 +160,24 @@ def main(args):
 
     xlim = (-100,3900)
     ylim = (-0.1, 1.1)
-    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], addsub_rs[0], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[0,1], addsub_rs[2], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[0,2], addsub_rs[6], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[0,3], addsub_rs[8], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
-    ax_B = letter('B',plot_value_by_iteration)(f, gs[1,0], addadd_rs[0], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[1,1], addadd_rs[2], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[1,2], addadd_rs[6], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[1,3], addadd_rs[8], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
-    ax_C = letter('C',plot_value_by_iteration)(f, gs[2,0], subsub_rs[0], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
-    letter('',plot_value_by_iteration)(f, gs[2,1], subsub_rs[2], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
-    letter('',plot_value_by_iteration)(f, gs[2,2], subsub_rs[6], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
-    letter('',plot_value_by_iteration)(f, gs[2,3], subsub_rs[8], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
-    f.savefig(f'{figure_path}/figureS1.png', dpi = 600)
+    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], addsub_rs[0][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[0,1], addsub_rs[2][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[0,2], addsub_rs[6][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[0,3], addsub_rs[8][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    ax_B = letter('B',plot_value_by_iteration)(f, gs[1,0], addadd_rs[0][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[1,1], addadd_rs[2][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[1,2], addadd_rs[6][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[1,3], addadd_rs[8][:, selected_steps_idx], scales, selected_steps, ylabel = 'add-add NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    ax_C = letter('C',plot_value_by_iteration)(f, gs[2,0], subsub_rs[0][:, selected_steps_idx], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[2,1], subsub_rs[2][:, selected_steps_idx], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[2,2], subsub_rs[6][:, selected_steps_idx], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[2,3], subsub_rs[8][:, selected_steps_idx], scales, selected_steps, ylabel = 'sub-sub NRS', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    f.savefig(f'{figure_path}/png/figureS1.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figureS1.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure 4 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S1 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

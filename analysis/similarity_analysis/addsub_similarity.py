@@ -23,21 +23,27 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
 
     # -------------------------------
     # Paths where to load/save data
     # -------------------------------
 
     # path containing activities
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # path containing tuning of neurons
-    tuning_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/tuning'
+    tuning_path = f'{os.environ.get("DATA_PATH")}/{task}/tuning'
     # path where rsa is saved
-    rsa_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/rsa_test'
+    rsa_path = f'{os.environ.get("DATA_PATH")}/{task}/rsa_test'
     os.makedirs(rsa_path, exist_ok=True)
     ext = f'_{args.variant}' if len(args.variant) > 0 else ''
-
 
     # -------------------------------
     # Display
@@ -61,9 +67,12 @@ def main(args):
     filename = [f'{rsa_path}/rsa_{args.similarity}_scaled{ext}.npy']
     if not np.all([os.path.exists(f) for f in filename]) or args.redo:
         rsa = np.nan*np.empty((len(steps), len(scales), np.sum(times), len(all_op), len(all_op)))
-        for i, step in enumerate(tqdm(steps)):
-            for j, scale in enumerate(tqdm(scales, leave = False)):
-                for k, m in enumerate(pbar := tqdm(modules, leave = False)):
+    else:
+        rsa = np.load(filename[0])
+    for i, step in enumerate(tqdm(steps)):
+        for j, scale in enumerate(tqdm(scales, leave = False)):
+            for k, m in enumerate(pbar := tqdm(modules, leave = False)):
+                if np.sum(np.isnan(rsa[i,j,ctimes[k]:ctimes2[k]]))>0:
                     try:
                         if scale%0.5 == 0:
                             model_name = f'scaled_{scale:.1f}{ext}'
@@ -88,10 +97,8 @@ def main(args):
                         pbar.set_description(f'Computing {args.similarity}')
                         update_rsa(rsa[i,j], mean_a, k)
                     except:
-                        print(f'Redo G={scale:.2f} step={step:d}')
-        np.save(filename[0], rsa)
-    else:
-        rsa = np.load(filename[0])
+                        tqdm.write(f'Redo G={scale:.2f} step={step:d}')
+    np.save(filename[0], rsa)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description = 'Compute similarity between addition and subtraction representation')
@@ -99,5 +106,6 @@ if __name__ == '__main__':
     parser.add_argument('--similarity', metavar = 'V', type = str, default = 'correlation', help = 'variant used')
     parser.add_argument('--redo', action='store_true')
     parser.add_argument('--redo_tuning', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

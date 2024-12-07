@@ -10,7 +10,7 @@ from humanfriendly import format_size
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 from packages.neural_manifolds_replicaMFT.mftma.manifold_analysis_correlation import manifold_analysis_corr
-
+from sklearn.model_selection import train_test_split
 
 def plot_components(c, ev, p, p2, s, xlabel, ylabel, clabel, xlim = None, ylim = None):
     n_c = c.shape[-1]
@@ -61,7 +61,7 @@ def main(args):
     # path containing activities
     activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # path where manifold variables are saved
-    pca_path = f'{os.environ.get("DATA_PATH")}/{task}/manifold'
+    pca_path = f'{os.environ.get("DATA_PATH")}/{task}/manifold_proj'
     os.makedirs(pca_path, exist_ok=True)
     
     ext = f'_{args.variant}' if len(args.variant) > 0 else ''
@@ -79,7 +79,8 @@ def main(args):
     times = np.array([1,2,4,2])
     ctimes2 = np.cumsum(times)
     ctimes = ctimes2 - times
-    
+    _, idx = train_test_split(np.arange(len(op)), test_size=0.5, stratify=op)
+
     for i, step in enumerate(tqdm(steps)):
         filename = [f'{pca_path}/manifold{s}{ext}_step{step:02}.npz' for s in ['_capacity', '_radius', '_dimension', '_correlation']]
         if not np.all([os.path.exists(f) for f in filename]) or args.redo:
@@ -96,7 +97,12 @@ def main(args):
                     _a = np.load(f'{activity_path}/{model_name}/step{step:05}/{m}.npz')[m]
                     for l in range(times[k]):
                         a = _a[:,l].reshape((_a.shape[0],-1))
-                        X = [a[label==res].T for res in range(n_max+1)]
+                        X = [a[idx][label[idx]==res].T for res in range(n_max+1)]
+                        n, p = X[0].shape
+                        #if n > 1000:
+                        #    P = np.random.normal(loc = 0, scale = 1, size = (1000, n))
+                        #    P /= np.sqrt(np.sum(P*P, axis=1, keepdims=True))
+                        #    X = [P@x for x in X]
                         capacity[j,ctimes[k]+l], radius[j,ctimes[k]+l], dimension[j,ctimes[k]+l], correlation[j,ctimes[k]+l], _ = manifold_analysis_corr(X, 0, 100)
             np.savez(filename[0], capacity)
             np.savez(filename[1], radius)
@@ -105,7 +111,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description = 'Compute manifold geometrical properties')
+    parser = argparse.ArgumentParser(description = 'Compute manifold geometrical properties (using projection for less computation time)')
     parser.add_argument('--variant', metavar = 'V', type = str, default = 'fixedbatchnorm', help = 'variant used')
     parser.add_argument('--redo', action='store_true')
     parser.add_argument('--steps', metavar = 'E', type = int, nargs = "+", help = 'list of steps to test')

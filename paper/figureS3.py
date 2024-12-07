@@ -26,7 +26,14 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(0, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
@@ -58,19 +65,20 @@ def main(args):
     # -------------------------------
 
     # Path where accuracy are saved
-    accuracy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/accuracy'
+    accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
-    distance_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distance/accuracy'
+    distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
     # Path were entropy are saved
-    entropy_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/entropy'
-    distribution_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/distribution'
+    entropy_path = f'{os.environ.get("DATA_PATH")}/{task}/entropy'
+    distribution_path = f'{os.environ.get("DATA_PATH")}/{task}/distribution'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -81,9 +89,9 @@ def main(args):
     acc = np.empty((len(scales), len(steps)))
     for i, scale in enumerate(tqdm(scales, leave = False)):
         if scale%0.5 == 0:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.1f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         else:
-            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_0_3800_accuracy.npy')
+            accuracy = np.load(f'{accuracy_path}/scaled_{scale:.2f}{ext}/steps_{steps[0]}_{steps[-1]}_accuracy.npy')
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
 
@@ -138,9 +146,9 @@ def main(args):
     print(f'Best accuracy iteration {1+steps[0]:d}: {np.max(acc[:,0]):.3f}')
     print(f'Worse accuracy iteration {1+selected_steps[-1]:d}: {np.min(acc[:,selected_steps_idx[-1]]):.3f}')
     print(f'Worse accuracy iteration {1+steps[-1]:d}: {np.min(acc[:,-1]):.3f}')
-    print(f'Correlation accuracy vs numerical trueness: {pearsonr(acc[:, selected_steps_idx].flatten(), trueness_response.flatten())}')
-    print(f'Correlation accuracy vs numerical precision: {pearsonr(acc[:, selected_steps_idx].flatten(), precision_response.flatten())}')
-    print(f'Correlation accuracy vs entropy: {pearsonr(acc[:, selected_steps_idx].flatten(), h_b.flatten())}')
+    print(f'Correlation accuracy vs numerical trueness: {pearsonr(acc[:, selected_steps_idx].flatten(), trueness_response[:, selected_steps_idx].flatten())}')
+    print(f'Correlation accuracy vs numerical precision: {pearsonr(acc[:, selected_steps_idx].flatten(), precision_response[:, selected_steps_idx].flatten())}')
+    print(f'Correlation accuracy vs entropy: {pearsonr(acc[:, selected_steps_idx].flatten(), h_b[:, selected_steps_idx].flatten())}')
     print(f'Estimated number of values used at best matching: {h_b[::2, best_step_b_idx]}')
     # -------------------------------
     # Display
@@ -153,10 +161,12 @@ def main(args):
     ax_B = letter('B',plot_value_by_iteration)(f, gs[0,1], precision_response[:,selected_steps_idx], scales, selected_steps, ylabel = 'numerical precision', clabel = 'gain $G$', ylim = (-0.1, 5.1), cticks = np.arange(1,6))
     ax_C = letter('C',plot_value_by_iteration)(f, gs[0,2], h_b[:,selected_steps_idx], scales, selected_steps, ylabel = '# different responses', clabel = 'gain $G$', ylim = (-2, 20), cticks = np.arange(1,6))
     
-    f.savefig(f'{figure_path}/figureS3.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figureS3.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figureS3.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure 6 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S3 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)

@@ -27,14 +27,21 @@ def main(args):
 
     n_max = 18
     scales = np.linspace(1.0, 5.0, 17)
-    steps = np.arange(0, 3801, 100)
+    if args.dataset == 'h':
+        tasks = [f'addsub_{n_max}']
+    elif args.dataset == 'f':
+        tasks =  [f'addsub_{n_max}_font']
+    elif args.dataset == 'h+f' or args.dataset == 'f+h':
+        tasks = [f'addsub_{n_max}{s}' for s in ['', '_font']]
+    task =  '+'.join(tasks)
+    steps = np.arange(0, 3801, 100) if args.dataset in ['h', 'f'] else np.arange(0, 7601, 100)
     selected_steps = np.arange(0, 3801, 100)
     selected_steps_idx = np.where(selected_steps[None,:] == steps[:,None])[0]
     ext = f'_fixedbatchnorm'
     idx_roi = 1
     name_roi = 'right IPL/IPS'
     thresholds = [0.95]
-    best_step = 800
+    best_step = 1100
     best_step_idx = np.where(steps == best_step)[0][0]
 
     # -------------------------------
@@ -61,12 +68,13 @@ def main(args):
     # -------------------------------
 
     # Path where model activity are saved
-    activity_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/activity'
+    activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
     # Path where representational similarity are saved
-    rs_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/rsa_test'
+    rs_path = f'{os.environ.get("DATA_PATH")}/{task}/rsa_test'
     # Path where figure are saved
-    figure_path = f'{os.environ.get("FIG_PATH")}/paper'
-    os.makedirs(figure_path, exist_ok=True)
+    figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
+    os.makedirs(f'{figure_path}/png', exist_ok=True)
+    os.makedirs(f'{figure_path}/pdf', exist_ok=True)
 
     # -------------------------------
     # Prepare data
@@ -131,19 +139,6 @@ def main(args):
     op2 = [eval(all_op[i][idx_op[i]+1:]) for i in range(len(all_op))]
     idx = np.lexsort(np.stack([op2,op1,res,op]))
 
-    os.makedirs(f'{figure_path}/figure1', exist_ok=True)
-    for i in [1, 7]:
-        for j, name in zip([0,2,6,8], ['V1', 'V2', 'V3', 'IPS']):
-            f = plt.figure(figsize = (2,2))
-            ax = f.add_subplot(1,1,1)
-            ax.imshow(rs[6,i,j,idx][:,idx], zorder = 0, vmin = -1, vmax = 1, cmap = 'viridis')#, cmap = 'coolwarm')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.add_patch(Rectangle((np.sum(op)-0.5, -0.5), np.sum(1-op)-0.5, np.sum(op)-0.5, linewidth=3, edgecolor='C3', facecolor='none', zorder = 10, clip_on = False))
-            f.savefig(f'{figure_path}/figure1/D_g_{scales[i]:.1f}_{j:d}_{name}.png', dpi = 600)
-    
-    params = np.stack([op,res,op1,op2])
-
     # -------------------------------
     # Display
     # -------------------------------
@@ -161,10 +156,12 @@ def main(args):
     print_title('sub-sub NRS')
     ax_G = letter('G',plot_by_layer)(f, gs[4,0], scales, subsub_rs[[0,2,6,8],:,best_step_idx], ylim = ylim, ylabel = f'sub-sub NRS', title = ['V1', 'V2', 'V3', 'IPS'], correlate = True, xticks = scales[::4], xlabel = 'gain $G$')
     ax_H = letter('H',multiplot_by_layer)(f, gs[4,1], np.arange(4), subsub_rs[[0,2,6,8],:,best_step_idx].T, scales, xlabel = 'layer', ylabel = f'sub-sub NRS', ylim = ylim , title = '', xlim = (-0.5,3.5), xticklabels = ['V1', 'V2', 'V3', 'IPS'], showbar = True, clabel = 'gain $G$', cticks = np.arange(1,6))
-    f.savefig(f'{figure_path}/figure4.png', dpi = 600)
+    f.savefig(f'{figure_path}/png/figure4.png', dpi = 1200)
+    f.savefig(f'{figure_path}/pdf/figure4.pdf', dpi = 1200)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate Figure 4 of manuscript')
     parser.add_argument('--redo', action='store_true')
+    parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()
     main(args)
