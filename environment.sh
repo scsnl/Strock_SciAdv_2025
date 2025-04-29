@@ -13,7 +13,7 @@ export PROJECT_SCRATCH=$SCRATCH/$PROJECT_NAME
 export FIG_PATH=${PROJECT_SCRATCH}/figures
 export DATA_PATH=${PROJECT_SCRATCH}/data
 export TMP_PATH=${PROJECT_SCRATCH}/data
-export CODE_PATH=$OAK/projects/$PROJECT_LEAD/Strock_bioRxiv_2024
+export CODE_PATH=$OAK/projects/$PROJECT_LEAD/Strock_SciAdv_2025
 mkdir -p $TMP_PATH/log
 
 # Change the following variables to adapt to your own platform

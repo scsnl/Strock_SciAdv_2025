@@ -5,7 +5,7 @@ from tqdm import tqdm
 # Data import
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr, ttest_ind, ttest_1samp, rv_discrete
+from scipy.stats import pearsonr, ttest_ind, ttest_1samp
 from utils.data import behavior_acc, matching_ranges
 from utils.prompt import print_title
 
@@ -13,7 +13,7 @@ from utils.prompt import print_title
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-from utils.plots import get_figsize, letter, plot_value_by_iteration, plot_value_by_gain, plot, plot_bar, plot_r_by_iteration, violinplot, imshow_by_gain
+from utils.plots import get_figsize, letter, plot_value_by_iteration, plot_value_by_gain, plot, plot_bar, plot_r_by_iteration, violinplot, violinplot_by_gain, plot_by_layer, barplot_by_layer, scatter, hist
 
 def main(args):
 
@@ -40,6 +40,8 @@ def main(args):
     idx_roi = 1
     name_roi = 'right IPL/IPS'
     thresholds = [0.95]
+    modules = ['V1', 'V2', 'V3', 'IPS']
+    idx_modules = [0,2,6,8] 
 
     # -------------------------------
     # Figure parameters
@@ -58,7 +60,7 @@ def main(args):
     hs = np.array([1])
     hspace = phi
 
-    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom, left = 1.5, right = 2)
+    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom, left = 1.0)
 
     # -------------------------------
     # Paths where to load/save data
@@ -68,13 +70,12 @@ def main(args):
     accuracy_path = f'{os.environ.get("DATA_PATH")}/{task}/accuracy'
     # Path where model activity are saved
     activity_path = f'{os.environ.get("DATA_PATH")}/{task}/activity'
+    # Path where representational similarity are saved
+    rs_path = f'{os.environ.get("DATA_PATH")}/{task}/rsa_test'
     # Path where patient behavior are saved
     behavior_path = f'{os.environ.get("DATA_PATH")}/addsub_{n_max}/behavior'
     # Path where distance between model and patient are saved
     distance_path = f'{os.environ.get("DATA_PATH")}/{task}/distance/accuracy'
-    # Path were entropy are saved
-    entropy_path = f'{os.environ.get("DATA_PATH")}/{task}/entropy'
-    distribution_path = f'{os.environ.get("DATA_PATH")}/{task}/distribution'
     # Path where figure are saved
     figure_path = f'{os.environ.get("FIG_PATH")}/paper/{task}'
     os.makedirs(f'{figure_path}/png', exist_ok=True)
@@ -95,77 +96,167 @@ def main(args):
         idx = np.where(accuracy["step"][:,None] == steps[None, :])[0]
         acc[i] = accuracy["accuracy"][idx]
 
-    # Model accuracy per item
+    # Model add-sub similarity
 
-    all_n = np.load(f'{distribution_path}/n_summary_scaled{ext}.npy')
-    all_op = np.load(f'{activity_path}/task.npz')["all_op"]
-    label = np.array([eval(op) for op in all_op])
-    label_n = np.zeros(all_n.shape[:-2]+(n_max+1,n_max+1)) # gain x step x expected x provided
-    for i in range(n_max+1):
-        idx = label == i
-        label_n[:,:,i] = np.sum(all_n[:,:,idx], axis = 2)
+    task = np.load(f'{activity_path}/task.npz')
+    rs = np.load(f'{rs_path}/rsa_correlation_scaled{ext}.npy')
+    all_op = task["all_op"]
+    all_add = np.where(np.char.find(all_op,"+") >= 0)[0]
+    all_sub = np.where(np.char.find(all_op,"-") >= 0)[0]
+    addsub_rs = np.mean(rs[:,:,:,all_add][:,:,:,:,all_sub], axis = (3,4)).T
+    addadd_rs = np.mean(rs[:,:,:,all_add][:,:,:,:,all_add], axis = (3,4)).T
+    subsub_rs = np.mean(rs[:,:,:,all_sub][:,:,:,:,all_sub], axis = (3,4)).T
+    overall_rs = np.mean(rs, axis = (3,4)).T
+    within_rs = np.mean([addadd_rs, subsub_rs], axis = 0)
+    increase_rs = within_rs - addsub_rs
 
-    # Matching
-    
-    path = [f'{distance_path}/best_{var}{ext}_numopsv2.npy' for var in ['excitability']+[f"distance{bn}" for bn in ["b"]]]
-    best_e_numops = np.load(path[0])
-    best_db_numops = np.load(path[1])
-    best_step_b_idx = np.argmin(np.sum(best_db_numops, axis = 0))
-    best_step_b = steps[best_step_b_idx]
-    best_e = best_e_numops[:,best_step_b_idx]
-    best_e_idx = np.where(scales[None] == best_e[:,None])[1]
+    rs_rs = np.empty((addsub_rs.shape[0],len(selected_steps)))
+    ps_rs = np.empty((addsub_rs.shape[0],len(selected_steps)))
+    std_rs = np.empty((addsub_rs.shape[0],len(selected_steps)))
+    for i, j in enumerate(selected_steps_idx):
+        for k in range(addsub_rs.shape[0]):
+            try:
+                rs_rs[k,i], ps_rs[k,i] = pearsonr(addsub_rs[k,:,j], scales)
+            except:
+                rs_rs[k,i], ps_rs[k,i] = np.nan, np.nan
+            std_rs[k,i] = np.std(addsub_rs[k,:,j])
 
-    # Model numerical precision
-    p = label_n/np.sum(label_n, axis = -1, keepdims = True) # gain x step x expected x provided
-    mean_response = np.sum(np.arange(n_max+1)*p, axis = -1)
-    trueness_response = np.mean(np.abs(mean_response-np.arange(n_max+1)[None,None]), axis = -1)
-    precision_response = np.mean(np.sqrt(np.sum(((np.arange(n_max+1)-mean_response[:,:,:,None])**2)*p, axis = -1)), axis = -1)
-    trueness_response_best_e = trueness_response[best_e_idx]
-    precision_response_best_e = precision_response[best_e_idx]
-
-    h_b = np.exp(np.load(f'{entropy_path}/response.npy'))
-    h_b_best_e = h_b[best_e_idx]
-
-
-    # Model 
+    # Patient behavioral data
 
     patients = pd.read_csv(f'{behavior_path}/TD_MD.csv')
     patient_data = pd.read_csv(f'{os.environ.get("OAK")}/projects/ehk/dnn-modeling-v2/raw/TD_MD_NPs.csv')
     patient_data = patient_data.set_index('PID')
     patient_data = patient_data.reindex(index=patients['PID'].values)
+    patient_data = patient_data.reset_index()
+    patient_data.rename(columns = {'number_operations_standard:wiat ii':'numops'}, inplace = True)
+    patient_data['addsub_accuracy'] = np.nan
+    
+    for i, p in enumerate(pbar := tqdm(range(patients.shape[0]), leave = False)):
+        patient_id = patients["PID"][p]
+        patient_group = patients["Group"][p]
+        pbar.set_description(f'Processing kid {patient_group} {patient_id:3d}')
+        behavior = pd.read_csv(f'{behavior_path}/{patient_id}.csv')
+        patient_data.at[i, 'addsub_accuracy'] = behavior_acc(behavior)
 
+    # Patient add-sub similarity
+
+    patient_addsub_rs = pd.read_csv(f'{os.environ.get("OAK")}/projects/lchen32/2019_TD_MD_AddSub_Similarity/scripts/taskfmri/RSA/roi_rsa_signal_addcom-addsim_VS_subcom-subsim_21MD24TD_oneGrpPlustwoGrpInter_withV1.tsv', sep='\t')
+    patient_addsub_rs = patient_addsub_rs.set_index('Subject')
+    patient_addsub_rs = patient_addsub_rs.reindex(index=patients['PID'].values)
+    patient_addsub_rs = patient_addsub_rs.reset_index()
+    patient_data[name_roi] = np.tanh(patient_addsub_rs.values[:,3+idx_roi]) # z -> r
+
+    # Normalize data
+    idx = ['addsub_accuracy', 'numops', name_roi]
+    patient_data[idx] = (patient_data[idx]-patient_data[idx].min())/(patient_data[idx].max()-patient_data[idx].min()) # min max
+    
+    min_acc, max_acc = acc.min(), acc.max()
+    transform_acc = lambda x: min_acc+x*(max_acc-min_acc)
+    acc[...] = (acc-min_acc)/(max_acc-min_acc)
+    min_addsub_rs, max_addsub_rs = addsub_rs.min(axis = (1,2), keepdims = True), addsub_rs.max(axis = (1,2), keepdims = True)
+    transform_addsub_rs = lambda x: min_acc+x*(max_acc-min_acc)
+    addsub_rs[...] = (addsub_rs-min_addsub_rs)/(max_addsub_rs-min_addsub_rs)
+
+    # Distance model accuracy vs patient numops
+
+    path = [f'{distance_path}/best_{var}{ext}_numopsv2.npy' for var in ['excitability']+[f"distance{bn}" for bn in ["b"]]]
+    best_e_numops = np.load(path[0])
+    best_db_numops = np.load(path[1])
+
+    # Matching
+
+    best_step_b_idx = np.argmin(np.sum(best_db_numops, axis = 0))
+    best_step_b = steps[best_step_b_idx]
+    best_e = best_e_numops[:,best_step_b_idx]
+    best_e_idx = np.where(scales[None] == best_e[:,None])[1]
+    acc_best_e = transform_acc(acc[best_e_idx, best_step_b_idx])
+    acc_child = transform_acc(patient_data['numops'])
+
+    addsub_rs_best_e = addsub_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    addsub_rs_best_e_td = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    addsub_rs_best_e_md = np.percentile(addsub_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+    addsub_rs_child = patient_data[name_roi]
+
+    addadd_rs_best_e = addadd_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    addadd_rs_best_e_td = np.percentile(addadd_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    addadd_rs_best_e_md = np.percentile(addadd_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+
+    subsub_rs_best_e = subsub_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    subsub_rs_best_e_td = np.percentile(subsub_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    subsub_rs_best_e_md = np.percentile(subsub_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+
+    within_rs_best_e = within_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    within_rs_best_e_td = np.percentile(within_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    within_rs_best_e_md = np.percentile(within_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+
+    increase_rs_best_e = increase_rs[:, best_e_idx, best_step_b_idx][idx_modules]
+    increase_rs_best_e_td = np.percentile(increase_rs_best_e[:,patient_data['Group']=='TD'], q = [5, 50, 95], axis = 1)
+    increase_rs_best_e_md = np.percentile(increase_rs_best_e[:,patient_data['Group']=='MD'], q = [5, 50, 95], axis = 1)
+
+    # Random matching
+
+    r0,p0 = pearsonr(addsub_rs_best_e[-1], addsub_rs_child)
+    path = [f'{distance_path}/best_{var}{ext}_random.npy' for var in ['excitability']+[f"distance{bn}" for bn in ["b"]]]
+    best_e_random = np.load(path[0])[:,:,best_step_b_idx]
+    rs,ps = np.zeros(best_e_random.shape[0]), np.zeros(best_e_random.shape[0])
+    for i in range(best_e_random.shape[0]):
+        best_e_random_idx = np.where(scales[None] == best_e_random[i,:,None])[1]
+        rs[i], ps[i] = pearsonr(addsub_rs[-1, best_e_random_idx, best_step_b_idx], addsub_rs_child)
 
     # -------------------------------
     # Stats
-    # -------------------------------
+    # -------------------------------st
+    
     
     print_title('Debug')
     print(f'acc shape: {acc.shape}')
+    print(f'addsub rs shape: {addsub_rs.shape}')
     print(f'figsize: {figsize}')
+    print(f'best matching iteration: {1+best_step_b}')
     print_title('Stats')
-    print(f'Best accuracy iteration {1+steps[0]:d}: {np.max(acc[:,0]):.3f}')
-    print(f'Worse accuracy iteration {1+selected_steps[-1]:d}: {np.min(acc[:,selected_steps_idx[-1]]):.3f}')
-    print(f'Worse accuracy iteration {1+steps[-1]:d}: {np.min(acc[:,-1]):.3f}')
-    print(f'Correlation accuracy vs numerical trueness: {pearsonr(acc[:, selected_steps_idx].flatten(), trueness_response[:, selected_steps_idx].flatten())}')
-    print(f'Correlation accuracy vs numerical precision: {pearsonr(acc[:, selected_steps_idx].flatten(), precision_response[:, selected_steps_idx].flatten())}')
-    print(f'Correlation accuracy vs entropy: {pearsonr(acc[:, selected_steps_idx].flatten(), h_b[:, selected_steps_idx].flatten())}')
-    print(f'Estimated number of values used at best matching: {h_b[::2, best_step_b_idx]}')
+    t,p = ttest_1samp(rs, r0)
+    print(f'Prediction add-sub NRS random vs b matching: (t = {t:.3f}, p = {p:.2e})')
+    print(f'Size effect add-sub NRS: {addsub_rs_best_e_md[1]-addsub_rs_best_e_td[1]}')
+
+    print_title('add-sub NRS')
+    for i, m in  enumerate(modules):
+        t,p = ttest_ind(addsub_rs_best_e[i][patient_data['Group']=='MD'], addsub_rs_best_e[i][patient_data['Group']=='TD'])
+        print(f'add-sub NRS MD pDNN vs TD pDNN ({m}): (t = {t:.3f}, p = {p:.2e})')
+    
+    print_title('add-add NRS')
+    for i, m in  enumerate(modules):
+        t,p = ttest_ind(addadd_rs_best_e[i][patient_data['Group']=='MD'], addadd_rs_best_e[i][patient_data['Group']=='TD'])
+        print(f'add-add NRS MD pDNN vs TD pDNN ({m}): (t = {t:.3f}, p = {p:.2e})')
+        
+    print_title('sub-sub NRS')
+    for i, m in  enumerate(modules):
+        t,p = ttest_ind(subsub_rs_best_e[i][patient_data['Group']=='MD'], subsub_rs_best_e[i][patient_data['Group']=='TD'])
+        print(f'sub-sub NRS MD pDNN vs TD pDNN ({m}): (t = {t:.3f}, p = {p:.2e})')
+    
+    print_title('within-operation NRS')
+    for i, m in  enumerate(modules):
+        t,p = ttest_ind(within_rs_best_e[i][patient_data['Group']=='MD'], within_rs_best_e[i][patient_data['Group']=='TD'])
+        print(f'within-operation NRS MD pDNN vs TD pDNN ({m}): (t = {t:.3f}, p = {p:.2e})')
+
+    print_title('$\Delta$NRS')
+    for i, m in  enumerate(modules):
+        t,p = ttest_ind(increase_rs_best_e[i][patient_data['Group']=='MD'], increase_rs_best_e[i][patient_data['Group']=='TD'])
+        print(f'$\Delta$NRS MD pDNN vs TD pDNN ({m}): (t = {t:.3f}, p = {p:.2e})')
+
     # -------------------------------
     # Display
     # -------------------------------
     
     f = plt.figure(figsize = figsize)
     gs = f.add_gridspec(len(hs), len(ws), height_ratios = hs, hspace = hspace/np.mean(hs), width_ratios = ws, wspace = wspace/np.mean(ws), left = _ws[0]/np.sum(_ws), right = 1.0-_ws[-1]/np.sum(_ws), bottom = _hs[-1]/np.sum(_hs), top = 1.0-_hs[0]/np.sum(_hs))
-
-    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], trueness_response[:,selected_steps_idx], scales, selected_steps, ylabel = 'numerical trueness', clabel = 'gain $G$', ylim = (-0.1,5.1), cticks = np.arange(1,6))
-    ax_B = letter('B',plot_value_by_iteration)(f, gs[0,1], precision_response[:,selected_steps_idx], scales, selected_steps, ylabel = 'numerical precision', clabel = 'gain $G$', ylim = (-0.1, 5.1), cticks = np.arange(1,6))
-    ax_C = letter('C',plot_value_by_iteration)(f, gs[0,2], h_b[:,selected_steps_idx], scales, selected_steps, ylabel = '# different responses', clabel = 'gain $G$', ylim = (-2, 20), cticks = np.arange(1,6))
-    
+    ax_A = letter('A', barplot_by_layer)(f, gs[0,0], modules, [addsub_rs_best_e_md, addsub_rs_best_e_td], c = [c_md, c_td], label = ['MLD', 'TD'], ylabel = 'add-sub NRS')
+    ax_B = letter('B', barplot_by_layer)(f, gs[0,1], modules, [addadd_rs_best_e_md, addadd_rs_best_e_td], c = [c_md, c_td], ylabel = 'add-add NRS')
+    ax_C = letter('C', barplot_by_layer)(f, gs[0,2], modules, [subsub_rs_best_e_md, subsub_rs_best_e_td], c = [c_md, c_td], ylabel = 'sub-sub NRS')
     f.savefig(f'{figure_path}/png/figureS3.png', dpi = 1200)
     f.savefig(f'{figure_path}/pdf/figureS3.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure S3 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S2 of manuscript')
     parser.add_argument('--redo', action='store_true')
     parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()

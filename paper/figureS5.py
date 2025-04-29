@@ -14,7 +14,7 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
-from utils.plots import get_figsize, letter, plot_value_by_iteration, plot_bar_by_gain, plot_by_layer, violinplot_by_gain, barplot_by_layer, plot, multiplot_by_layer
+from utils.plots import get_figsize, letter, plot_value_by_iteration, plot_bar_by_gain, plot_by_layer, violinplot_by_gain, barplot_by_layer, plot
 
 
 
@@ -56,12 +56,12 @@ def main(args):
     zoom = 10
     groups = ['TD', 'MD']
     phi = (1+np.sqrt(5))/2
-    ws = phi*np.array([1,1,1])
-    wspace = phi
-    hs = np.array([1])
+    ws = phi*np.array([1,1,1,1])
+    wspace = phi/2
+    hs = np.array([1,1,1])
     hspace = phi
 
-    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom, left = 1.5, right = 2)
+    figsize, _ws, _hs = get_figsize(ws, wspace, hs, hspace, zoom, left = 0.5, right = 1)
 
     # -------------------------------
     # Paths where to load/save data
@@ -206,16 +206,31 @@ def main(args):
     
     f = plt.figure(figsize = figsize)
     gs = f.add_gridspec(len(hs), len(ws), height_ratios = hs, hspace = hspace/np.mean(hs), width_ratios = ws, wspace = wspace/np.mean(ws), left = _ws[0]/np.sum(_ws), right = 1.0-_ws[-1]/np.sum(_ws), bottom = _hs[-1]/np.sum(_hs), top = 1.0-_hs[0]/np.sum(_hs))
-    ylim = None
-    ax_A = letter('A',multiplot_by_layer)(f, gs[0,0], np.arange(4), capacity[[0,2,6,8],:,best_step_b_idx-1].T, scales, xlabel = 'layer', ylabel = f'capacity', ylim = ylim , title = '', xlim = (-0.5,3.5), xticklabels = ['V1', 'V2', 'V3', 'IPS'], showbar = True, clabel = 'gain $G$', cticks = np.arange(1,6))
-    ax_B = letter('B',multiplot_by_layer)(f, gs[0,1], np.arange(4), dimension[[0,2,6,8],:,best_step_b_idx-1].T, scales, xlabel = 'layer', ylabel = f'dimensionality', ylim = ylim , title = '', xlim = (-0.5,3.5), xticklabels = ['V1', 'V2', 'V3', 'IPS'], showbar = True, clabel = 'gain $G$', cticks = np.arange(1,6))
-    ax_C = letter('C',multiplot_by_layer)(f, gs[0,2], np.arange(4), correlation[[0,2,6,8],:,best_step_b_idx-1].T, scales, xlabel = 'layer', ylabel = f'correlation', ylim = ylim , title = '', xlim = (-0.5,3.5), xticklabels = ['V1', 'V2', 'V3', 'IPS'], showbar = True, clabel = 'gain $G$', cticks = np.arange(1,6))
+    xlim = (-100,3900)
+    ylim = (-0.01, 0.08)
+
+    ax_A = letter('A',plot_value_by_iteration)(f, gs[0,0], capacity[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[0,1], capacity[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[0,2], capacity[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[0,3], capacity[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'capacity', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    
+    ylim = (-10, 510)
+    ax_B = letter('B',plot_value_by_iteration)(f, gs[1,0], dimension[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[1,1], dimension[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[1,2], dimension[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[1,3], dimension[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'dimensionality', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
+    
+    ylim = (-0.1, 1.1)
+    ax_C = letter('C',plot_value_by_iteration)(f, gs[2,0], correlation[0][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V1')
+    letter('',plot_value_by_iteration)(f, gs[2,1], correlation[2][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V2')
+    letter('',plot_value_by_iteration)(f, gs[2,2], correlation[6][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), showbar = False, title = 'V3')
+    letter('',plot_value_by_iteration)(f, gs[2,3], correlation[8][:, selected_steps_idx-1], scales, selected_steps, ylabel = 'correlation', clabel = 'gain $G$', ylim = ylim, xlim = xlim, cticks = np.arange(1,6), title = 'IPS')
 
     f.savefig(f'{figure_path}/png/figureS5.png', dpi = 1200)
     f.savefig(f'{figure_path}/pdf/figureS5.pdf', dpi = 1200)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Generate Figure S5 of manuscript')
+    parser = argparse.ArgumentParser(description='Generate Figure S4 of manuscript')
     parser.add_argument('--redo', action='store_true')
     parser.add_argument('--dataset', metavar='D', type = str, default = 'h', choices = ['h', 'f', 'h+f'], help='Which dataset is used to train')
     args = parser.parse_args()

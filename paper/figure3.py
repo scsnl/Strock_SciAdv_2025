@@ -54,7 +54,7 @@ def main(args):
     groups = ['TD', 'MD']
     phi = (1+np.sqrt(5))/2
     ws = phi*np.array([1,1])
-    wspace = phi
+    wspace = 1
     hs = np.array([1,1])
     hspace = 1
 

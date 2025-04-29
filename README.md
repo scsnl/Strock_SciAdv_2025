@@ -1,7 +1,22 @@
-# Strock_bioRxiv_2024
+# Strock_SciAdv_2025
 
-In this project we use artificial neural networks to model Mathematical Learning Deficit (MD) in children as resulting from an higher excitability level of neurons.
+Code from the paper: Strock, A., Mistry, P.K., Menon, V. (2025). Personalized deep neural networks reveal mechanisms of math learning disabilities in children. Science Advances.
+
+In this project we use artificial neural networks to model Mathematical Learning Disabilities (MLD) in children as resulting from an higher excitability level of neurons.
 We use the structure [CORnet](https://github.com/dicarlolab/CORnet) without any pre-training, and we train it to solve addition and subtraction visually presented.
+
+## Initial installation
+
+
+Make a new environment and install packages from `requirements.txt`, e.g. `pip install -r requirements.txt`.
+
+Clone external repositories.
+```bash
+mkdir common/packages
+cd common/packages
+git clone https://github.com/dicarlolab/CORnet
+git clone https://github.com/schung039/neural_manifolds_replicaMFT
+```
 
 ## Setting up environment
 
@@ -51,6 +66,11 @@ submit8c analysis/manifold_analysis/step_manifold.py --psteps $(seq -s ' ' 0 100
 ```
 
 # Manuscript Figures
+
+To obtain all Figures of manuscript:
+```bash
+bash paper/figure_all.sh
+```
 
 To obtain Figure X of manuscript
 ```bash

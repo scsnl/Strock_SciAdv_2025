@@ -12,6 +12,15 @@ from matplotlib.legend import Legend
 from itertools import combinations, product
 from .prompt import print_title
 
+scale_font = 10/7.25
+plt.rc('font', size=8*scale_font)
+plt.rc('axes', titlesize=8*scale_font)
+plt.rc('axes', labelsize=8*scale_font)
+plt.rc('xtick', labelsize=8*scale_font)
+plt.rc('ytick', labelsize=8*scale_font)
+plt.rc('legend', fontsize=7.5*scale_font)
+plt.rc('figure', dpi=1200)
+
 class TextHandler(HandlerBase):
     def create_artists(self, legend, text ,xdescent, ydescent,
                         width, height, fontsize, trans):
@@ -21,7 +30,8 @@ class TextHandler(HandlerBase):
 
 Legend.update_default_handler_map({str : TextHandler()})
 
-def letter(letter, plot = lambda f, gs: f.add_subplot(gs), delta = 0.1, k=2, printletter = False): # fontsize = 9, printsize = 7.25, k = fonsize/printsize
+phi = (1+np.sqrt(5))/2
+def letter(letter, plot = lambda f, gs: f.add_subplot(gs), delta = 0.09, k=9/7.25, printletter = False): # fontsize = 9, printsize = 7.25, k = fonsize/printsize
     def wrapper(f, gs, *args, **kwargs):
         if printletter:
             print_title(letter)
@@ -29,11 +39,11 @@ def letter(letter, plot = lambda f, gs: f.add_subplot(gs), delta = 0.1, k=2, pri
         w,h = f.get_figwidth(), f.get_figheight()
         r = w/h
         coord = f.transFigure.inverted().transform(ax.transAxes.transform((0,1)))
-        t = ax.text(coord[0]-delta, coord[1]+r*delta/2, letter, fontsize=k*w, fontweight = 'bold', transform = f.transFigure, ha = 'left', va = 'top')
+        t = ax.text(coord[0]-delta*w/10, coord[1]+r*delta/phi*w/10, letter, fontsize=k*w, fontweight = 'bold', transform = f.transFigure, ha = 'left', va = 'top')
         return ax
     return wrapper
 
-def get_figsize(ws, wspace, hs, hspace, zoom, left = 2, right = 4, top = 2, bottom = 2):
+def get_figsize(ws, wspace, hs, hspace, zoom, left = 2, right = 4, top = 1.5, bottom = 2):
     _ws = np.zeros(2*len(ws)+1)+wspace
     _ws[1::2] = ws
     _ws[[0]] /= left
@@ -93,7 +103,8 @@ def plot(f, gs, x, y, xlabel = '', ylabel = '', xlim = None, ylim = None, loc = 
                 s = '**'
             else:
                 s = '*'
-            ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', size = 15, color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
+            f.draw_without_rendering()
+            ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', size = 'large', color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
     return ax
 
 # Clean below
@@ -175,7 +186,7 @@ def violinplot(f, gs, ys, names, c = None, xlabel = '', ylabel = '', ylim = None
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_xticks(np.arange(0,n))
-    ax.set_xticklabels([names[i] for i in idx], size = 10)
+    ax.set_xticklabels([names[i] for i in idx])
     y_min, y_max = np.min([np.min(y) for y in ys]), np.max([np.max(y) for y in ys])
     y_range = y_max-y_min
     _ylabel = ylabel.replace('\n', ' ')
@@ -231,10 +242,10 @@ def violinplot(f, gs, ys, names, c = None, xlabel = '', ylabel = '', ylim = None
         else:
             s = 'mixed'
         if p[1] <= 0.05 and showsign:
-            ax.text((i+j)/2, _y_max, f'{">" if sign else "<"}\n{s}', va = 'bottom', ha = 'center', size = 'large')
+            ax.text((i+j)/2, _y_max, f'{">" if sign else "<"}\n{s}', va = 'bottom', ha = 'center')
             signshown = True
         else:
-            ax.text((i+j)/2, _y_max, s, va = 'bottom', ha = 'center', size = 'large')
+            ax.text((i+j)/2, _y_max, s, va = 'bottom', ha = 'center')
             signshown = False
     for i,j in printstats:
         t = ts[idx[i],idx[j]], ts[idx[i],idx[j]]
@@ -268,7 +279,7 @@ def plot_value_by_iteration(f, gs, value, es, steps, ylabel, clabel, cticks = No
         ax.axhline(chance, 0, 1, color = '0.5', linestyle = '--', zorder = len(es))
         ax.text(steps[-1], chance, 'chance level', va = 'bottom', ha = 'right', color = '0.5')
     if showbar:
-        cbar = plt.colorbar(sm, cax = ax.inset_axes([1.05, 0.0, 0.05, 1.0]), label = clabel)
+        cbar = plt.colorbar(sm, cax = ax.inset_axes([1.05, 0.0, 0.05, 1.0]), label = clabel, rasterized = True)
         if not cticks is None:
             cbar.ax.set_yticks(cticks)
     return ax
@@ -314,8 +325,7 @@ def plot_r_by_iteration(f, gs, rs, ps, steps, legend = False, title = ''):
     ax.set_xlabel('iteration')
     ax.set_ylabel(f'correlation $r$')
     if legend:
-        ax.legend(loc = 'lower center', bbox_to_anchor = (0.5, 1.1), ncol = 3, fontsize = 10, columnspacing = 1.0, fancybox = False)#, title = 'p < ?', title_fontproperties = {'size': 10, 'weight': 'bold'})
-       #ax.legend(loc = 'center left', bbox_to_anchor = (1.05, 0.5), ncol = 1, fontsize = 10, columnspacing = 1.0, fancybox = False, title = 'p < ?', title_fontproperties = {'size': 10, 'weight': 'bold'})
+        ax.legend(loc = 'lower center', bbox_to_anchor = (0.5, 1.1), ncol = 3, columnspacing = 1.0, fancybox = False)
     return ax
 
 def violinplot_by_gain(f,gs,es,value,xlabel='',ylabel='', title = '', sharey = None, ylim = None):
@@ -356,7 +366,7 @@ def violinplot_by_gain(f,gs,es,value,xlabel='',ylabel='', title = '', sharey = N
             s = '**'
         else:
             s = '*'
-        ax.text(e_m, a*e_m+b, s, va = 'bottom', ha = 'center', size = 15, color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
+        ax.text(e_m, a*e_m+b, s, va = 'bottom', ha = 'center', color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
     ax.set_xlabel('gain $G$')
     ax.set_ylabel(ylabel)
     if not ylim is None:
@@ -445,7 +455,7 @@ def plot_bar_by_gain(f, gs, x, y, xlabel = '', ylabel = '', xlim = None, ylim = 
                     s = '**'
                 else:
                     s = '*'
-                ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', size = 15, color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
+                ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
         except:
             print(f'Correlation {_xlabel} vs {_ylabel}{ext}: Error')
     return ax
@@ -506,7 +516,8 @@ def scatter(f, gs, x, y, xlabel = '', ylabel = '', xlim = None, ylim = None, loc
                 s = '**'
             else:
                 s = '*'
-            ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', size = 15, color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
+            f.draw_without_rendering()
+            ax.text(np.mean(x), a*np.mean(x)+b, s, va = 'bottom', ha = 'center', size = 'large', color = 'C3', rotation = theta, rotation_mode='anchor', path_effects = [PathEffects.withStroke(linewidth=2, foreground='1.0')])
     return ax
 
 def hist(f, gs, x, x0, c = '0.7', xlabel = '', ylabel = 'count', title = ''):
@@ -528,7 +539,7 @@ def imshow_by_gain(f, gs, x, y, xlabel = '', ylabel = '', ticks = None, clabel =
     for i in range(len(y)):
         ax = f.add_subplot(_gs[i])
         ax.set_title(f'$G$ = {y[i]:.1f}')
-        ax.imshow(x[i].T, cmap = cmap, norm = norm)
+        ax.imshow(x[i].T, cmap = cmap, norm = norm, rasterized = True)
         ax.set_xlabel(xlabel)
         if not ticks is None:
             ax.set_xticks(ticks)
@@ -540,8 +551,7 @@ def imshow_by_gain(f, gs, x, y, xlabel = '', ylabel = '', ticks = None, clabel =
         if i == len(y)-1:
             _ax = ax.inset_axes([1.05, 0.0, 0.05, 1.0])
             cbar = plt.colorbar(sm, cax = _ax, label = clabel)
-            #_ax.ticklabel_format(scilimits=(2,2))
-            #breakpoint()
+            _ax.ticklabel_format(scilimits=(2,2))
     ax = f.add_subplot(gs)
     ax.axis('off')
     return ax

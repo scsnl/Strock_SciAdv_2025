@@ -112,6 +112,7 @@ def main(args):
     print_title('Debug')
     print(f'acc shape: {acc.shape}')
     print(f'figsize: {figsize}')
+    print(plt.rcParams['font.size'])
     print_title('Stats')
     for i, scale in enumerate(scales):
         print(f'G = {scale:.1f}: reaching 0.95 at iteration {step_reach_threshold[0.95][i]:d}')
